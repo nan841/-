@@ -1,0 +1,8 @@
+{
+  "name": "极速脚本",
+  "description": "基于 Gemini AI 的电商选品内容生成工具，支持自动提取产品信息、生成白底三视图、模特交互图、核心卖点及直播脚本。",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
