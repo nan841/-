@@ -1,3 +1,12 @@
+export enum AppTab {
+  ProductInfo = 'productInfo',
+  ThreeView = 'threeView',
+  Interaction = 'interaction',
+  SellingPoints = 'sellingPoints',
+  Script = 'script',
+  History = 'history',
+  Trash = 'trash'
+}
 
 export interface ProductInfo {
   pid: string;
@@ -12,32 +21,27 @@ export interface ProductInfo {
 export interface HistoryItem {
   id: string;
   timestamp: number;
-  deletedAt?: number; // 存在则表示在回收站中
   product: ProductInfo;
-  threeView?: string;
-  interaction?: string;
+  
+  // ✅ 核心升级：兼容旧数据，开启全新的无限画廊数组
+  threeView?: string; 
+  threeViews?: string[]; 
+  
+  interaction?: string; 
+  interactions?: string[]; 
+  
   sellingPoints?: string[];
   script?: string;
-}
-
-export interface AllowedUser {
-  username: string;
-  password: string;
+  deletedAt?: number;
 }
 
 export interface UserData {
   username: string;
+  lastActiveId?: string | null;
   history: HistoryItem[];
-  lastActiveId?: string;
 }
 
-export enum AppTab {
-  ProductInfo = 'product',
-  ThreeView = 'three_view',
-  Interaction = 'interaction',
-  SellingPoints = 'selling_points',
-  Script = 'script',
-  History = 'history',
-  Trash = 'trash',
-  AdminPanel = 'admin_panel'
+export interface AllowedUser {
+  username: string;
+  password?: string;
 }
