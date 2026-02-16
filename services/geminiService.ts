@@ -1,95 +1,134 @@
+import { getCurrentUser } from './storageService';
 
-import { GoogleGenAI, Type } from "@google/genai";
-import { ProductInfo } from "../types";
+const BASE_URL = 'http://192.168.20.216:8000/api';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+const getUsername = () => {
+  const user = getCurrentUser();
+  return user ? user.username : 'unknown';
+};
 
-export const analyzeProductWithSearch = async (pid: string): Promise<ProductInfo | null> => {
+export const loginUser = async (username: string, password: string) => {
+  const response = await fetch(`${BASE_URL}/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password })
+  });
+  const data = await response.json();
+  if (!response.ok || data.detail) throw new Error(data.detail || "登录失败");
+  return data;
+};
+
+export const adminAddUser = async (adminPass: string, newU: string, newP: string) => {
+  const response = await fetch(`${BASE_URL}/admin/add-user`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ admin_pass: adminPass, new_username: newU, new_password: newP })
+  });
+  const data = await response.json();
+  if (!response.ok || data.detail) throw new Error(data.detail || "添加失败");
+  return data;
+};
+
+export const adminGetUsers = async (adminPass: string) => {
+  const response = await fetch(`${BASE_URL}/admin/users`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ admin_pass: adminPass })
+  });
+  const data = await response.json();
+  if (!response.ok || data.detail) throw new Error(data.detail || "获取失败");
+  return data.users;
+};
+
+export const adminDeleteUser = async (adminPass: string, targetU: string) => {
+  const response = await fetch(`${BASE_URL}/admin/delete-user`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ admin_pass: adminPass, username: targetU })
+  });
+  const data = await response.json();
+  if (!response.ok || data.detail) throw new Error(data.detail || "删除失败");
+  return data;
+};
+
+export const deleteBackendProduct = async (pid: string, username: string) => {
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `分析 FastMoss PID 为 ${pid} 的电商产品信息。请提取产品的名称、品牌、国家、详细类目和预估价格。`,
-      config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            pid: { type: Type.STRING },
-            introduction: { type: Type.STRING },
-            brand: { type: Type.STRING },
-            country: { type: Type.STRING },
-            category: { type: Type.STRING },
-            price: { type: Type.STRING },
-            images: { 
-              type: Type.ARRAY, 
-              items: { type: Type.STRING },
-              description: "提取到的高质量产品图片链接" 
-            },
-          },
-          required: ["pid", "introduction", "brand", "country", "category", "price", "images"]
-        }
-      }
+    await fetch(`${BASE_URL}/delete`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pid, username })
     });
-
-    return JSON.parse(response.text);
-  } catch (error) {
-    console.error("Scraping error:", error);
-    return null;
-  }
+  } catch (e) {}
 };
 
-export const generateThreeView = async (product: ProductInfo) => {
-  const prompt = `生成产品的白底三视图。产品描述: ${product.introduction}。布局结构: 图像包含三个独立视图(前、后、侧)，平行排列。超写实摄影风格，摄影棚光影。`;
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: { parts: [{ text: prompt }] },
-    config: { imageConfig: { aspectRatio: "16:9" } }
-  });
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
-  }
-  return null;
+// ✅ 新增：呼叫后端毁掉 D盘里的一张照片
+export const deleteBackendImage = async (url: string) => {
+  try {
+    await fetch(`${BASE_URL}/delete-image`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: url, username: getUsername() })
+    });
+  } catch (e) { console.error("物理删除失败", e); }
 };
 
-export const generateInteraction = async (product: ProductInfo, modelImageBase64?: string, customPrompt?: string) => {
-  const basePrompt = `让模特自然穿戴该产品: ${product.introduction}。9:16竖屏快照，生活化场景。`;
-  const finalPrompt = customPrompt ? `${customPrompt} (参考产品: ${product.introduction})` : basePrompt;
-  
-  const parts: any[] = [{ text: finalPrompt }];
-  if (modelImageBase64) {
-    parts.push({ inlineData: { data: modelImageBase64.split(',')[1], mimeType: 'image/jpeg' } });
-  }
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: { parts },
-    config: { imageConfig: { aspectRatio: "9:16" } }
+export const analyzeProductWithSearch = async (pid: string, username?: string) => {
+  const response = await fetch(`${BASE_URL}/analyze`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pid, username: username || getUsername() })
   });
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
-  }
-  return null;
+  const data = await response.json();
+  if (!response.ok || data.detail) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail) || "采集失败");
+  return data;
 };
 
-export const generateSellingPoints = async (product: ProductInfo) => {
-  const prompt = `分析产品：${product.introduction}，生成5个核心卖点。要求：每行一个，简洁有力，突出转化。`;
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
-    }
-  });
-  return JSON.parse(response.text);
+export const generateThreeView = async (product: any, username: string) => {
+  try {
+    const response = await fetch(`${BASE_URL}/gen-3view`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pid: product.pid, username, product, images: product.images || [] })
+    });
+    const data = await response.json();
+    if (!response.ok || data.detail) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail) || "生成三视图失败");
+    return data.result;
+  } catch (error: any) { alert(`❌ 失败: ${error.message}`); return null; }
 };
 
-export const generateScript = async (product: ProductInfo, points: string[], customPrompt?: string) => {
-  const basePrompt = `基于产品 ${product.introduction} 和卖点 ${points.join('; ')} 生成一段TikTok带货脚本。要求包含Hook、核心内容和CTA。`;
-  const finalPrompt = customPrompt ? `${basePrompt} 额外要求：${customPrompt}` : basePrompt;
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: finalPrompt,
-  });
-  return response.text;
+export const generateInteraction = async (product: any, username: string, modelImage?: string | null, customPrompt?: string) => {
+  try {
+    const response = await fetch(`${BASE_URL}/gen-interaction`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        pid: product.pid, username, product, images: product.images || [], 
+        custom_prompt: customPrompt || null, 
+        model_image_b64: modelImage || null 
+      })
+    });
+    const data = await response.json();
+    if (!response.ok || data.detail) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail) || "生成模特图失败");
+    return data.result;
+  } catch (error: any) { alert(`❌ 失败: ${error.message}`); return null; }
+};
+
+export const generateSellingPoints = async (product: any, username: string) => {
+  try {
+    const response = await fetch(`${BASE_URL}/gen-points`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pid: product.pid, username, product, images: product.images || [] })
+    });
+    const data = await response.json();
+    if (!response.ok || data.detail) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail) || "卖点分析失败");
+    return data.result;
+  } catch (error: any) { alert(`❌ 失败: ${error.message}`); return null; }
+};
+
+// 支持接收选中的精选图片数组 generatedAssets
+export const generateScript = async (product: any, username: string, points: string[], customPrompt?: string, generatedAssets?: string[]) => {
+  try {
+    const response = await fetch(`${BASE_URL}/gen-script`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        pid: product.pid, username, product, images: product.images || [], 
+        points, custom_prompt: customPrompt || null, 
+        generated_assets: generatedAssets || [] 
+      })
+    });
+    const data = await response.json();
+    if (!response.ok || data.detail) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail) || "脚本生成失败");
+    return data.result;
+  } catch (error: any) { alert(`❌ 失败: ${error.message}`); return null; }
 };
