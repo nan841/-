@@ -1,16 +1,19 @@
 import { UserData, HistoryItem, AllowedUser } from '../types';
+import { BASE_URL } from './geminiService';
 
 const CURRENT_USER_SESSION = 'fastmoss_session';
-const BASE_URL = 'http://192.168.20.216:8000/api';
 
-const syncToBackend = async (user: UserData) => {
+export const syncToBackend = async (user: UserData) => {
   if (!user || !user.username) return;
   try {
-    await fetch(`${BASE_URL}/sync-history`, {
+    const res = await fetch(`${BASE_URL}/sync-history`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: user.username, history: user.history })
     });
+    if (res.ok) {
+       console.log(`✅ 账号 [${user.username}] 的历史记录已成功钉入服务器硬盘！`);
+    }
   } catch (e) {
     console.error("同步历史记录失败:", e);
   }
@@ -18,12 +21,10 @@ const syncToBackend = async (user: UserData) => {
 
 export const getCurrentUser = (): UserData | null => {
   try {
-    // Session 控制当前网页是哪个账号登录的
     const sessionStr = sessionStorage.getItem(CURRENT_USER_SESSION);
     if (!sessionStr) return null;
     const session = JSON.parse(sessionStr);
     
-    // ✅ 绝对隔离：只读取专门挂在这个账号名下的记录保险箱！
     const historyStr = localStorage.getItem(`fastmoss_history_${session.username}`);
     return {
       username: session.username,
@@ -39,7 +40,6 @@ export const setCurrentUser = (user: UserData | null) => {
       username: user.username,
       lastActiveId: user.lastActiveId
     }));
-    // 数据死死钉在这个账号的名下
     localStorage.setItem(`fastmoss_history_${user.username}`, JSON.stringify(user.history));
   } else {
     sessionStorage.removeItem(CURRENT_USER_SESSION);
@@ -90,6 +90,15 @@ export const permanentDelete = (id: string) => {
   const user = getCurrentUser();
   if (!user) return;
   user.history = user.history.filter(h => h.id !== id);
+  setCurrentUser(user);
+  syncToBackend(user);
+};
+
+// ✅ 新增：一键清空回收站逻辑，剔除掉本地被删的内容
+export const emptyTrash = () => {
+  const user = getCurrentUser();
+  if (!user) return;
+  user.history = user.history.filter(h => !h.deletedAt);
   setCurrentUser(user);
   syncToBackend(user);
 };
