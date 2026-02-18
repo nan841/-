@@ -23,14 +23,14 @@ export interface HistoryItem {
   timestamp: number;
   product: ProductInfo;
   
-  // ✅ 核心升级：兼容旧数据，开启全新的无限画廊数组
-  threeView?: string; 
   threeViews?: string[]; 
-  
-  interaction?: string; 
   interactions?: string[]; 
   
-  sellingPoints?: string[];
+  // ✅ 卖点体系全面升级
+  sellingPoints?: string[];     // AI生成的卖点
+  customPoints?: string[];      // 员工手动添加的补充卖点
+  selectedPoints?: string[];    // 最终打勾选定、投喂给剧本大模型的卖点
+  
   script?: string;
   deletedAt?: number;
 }
