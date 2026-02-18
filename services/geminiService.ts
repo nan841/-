@@ -1,6 +1,6 @@
 import { getCurrentUser } from './storageService';
 
-const BASE_URL = 'http://192.168.20.216:8000/api';
+export const BASE_URL = `http://${window.location.hostname}:8000/api`;
 
 const getUsername = () => {
   const user = getCurrentUser();
@@ -14,6 +14,37 @@ export const loginUser = async (username: string, password: string) => {
   });
   const data = await response.json();
   if (!response.ok || data.detail) throw new Error(data.detail || "登录失败");
+  return data;
+};
+
+export const adminGetConfig = async (adminPass: string) => {
+  const response = await fetch(`${BASE_URL}/admin/get-config`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ admin_pass: adminPass })
+  });
+  if (!response.ok) return { text_model: "gpt-5.2" };
+  const data = await response.json();
+  return data;
+};
+
+export const adminSetConfig = async (adminPass: string, text_model: string) => {
+  const response = await fetch(`${BASE_URL}/admin/set-config`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ admin_pass: adminPass, text_model })
+  });
+  const data = await response.json();
+  if (!response.ok || data.detail) throw new Error(data.detail || "切换模型失败");
+  return data;
+};
+
+// ✅ 新增：管理员发包测试模型接口
+export const adminTestModel = async (adminPass: string, text_model: string) => {
+  const response = await fetch(`${BASE_URL}/admin/test-model`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ admin_pass: adminPass, text_model })
+  });
+  const data = await response.json();
+  if (!response.ok || data.detail) throw new Error(data.detail || "测试请求失败");
   return data;
 };
 
@@ -56,7 +87,6 @@ export const deleteBackendProduct = async (pid: string, username: string) => {
   } catch (e) {}
 };
 
-// ✅ 新增：呼叫后端毁掉 D盘里的一张照片
 export const deleteBackendImage = async (url: string) => {
   try {
     await fetch(`${BASE_URL}/delete-image`, {
@@ -116,7 +146,6 @@ export const generateSellingPoints = async (product: any, username: string) => {
   } catch (error: any) { alert(`❌ 失败: ${error.message}`); return null; }
 };
 
-// 支持接收选中的精选图片数组 generatedAssets
 export const generateScript = async (product: any, username: string, points: string[], customPrompt?: string, generatedAssets?: string[]) => {
   try {
     const response = await fetch(`${BASE_URL}/gen-script`, {
